@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="zh">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>SHA-256 名字竞技场</title>
+		<style>
+			body {
+				font-family: system-ui, sans-serif;
+				max-width: 1000px;
+				margin: 20px auto;
+				padding: 0 15px;
+				background: #1a1a2e;
+				color: #eee;
+			}
+			textarea {
+				width: 100%;
+				padding: 12px;
+				font-size: 16px;
+				border-radius: 8px;
+				border: 1px solid #444;
+				background: #2a2a4a;
+				color: #fff;
+				resize: vertical;
+			}
+			button {
+				margin: 10px 0;
+				padding: 12px 30px;
+				font-size: 18px;
+				font-weight: bold;
+				background: #4a6c8f;
+				color: white;
+				border: none;
+				border-radius: 8px;
+				cursor: pointer;
+			}
+			button:hover {
+				background: #5a7c9f;
+			}
+			.mode-hint {
+				color: #aad;
+				font-size: 14px;
+				margin-top: -5px;
+				margin-bottom: 10px;
+			}
+			.fighters {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 15px;
+				margin: 20px 0;
+			}
+			.team-group {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 10px;
+				border: 1px solid #4a6c8f;
+				border-radius: 12px;
+				padding: 10px;
+				background: #1f1f3a;
+			}
+			.team-label {
+				width: 100%;
+				font-weight: bold;
+				color: #aad;
+				margin-bottom: 5px;
+			}
+			.card {
+				background: #2a2a4a;
+				border-radius: 12px;
+				padding: 15px;
+				min-width: 160px;
+				flex: 1 0 auto;
+				border-left: 4px solid #6a9fc0;
+			}
+			.card.dead {
+				opacity: 0.4;
+				border-left-color: #804040;
+			}
+			.card .name {
+				font-size: 20px;
+				font-weight: bold;
+				margin-bottom: 10px;
+			}
+			.card .hp {
+				background: #3a1a1a;
+				height: 20px;
+				border-radius: 10px;
+				margin: 8px 0;
+				overflow: hidden;
+			}
+			.card .hp-bar {
+				height: 100%;
+				background: #4acf6a;
+				width: 100%;
+			}
+			.stats {
+				display: grid;
+				grid-template-columns: repeat(4, 1fr);
+				gap: 5px;
+				font-size: 13px;
+			}
+			.stat {
+				text-align: center;
+			}
+			.stat span {
+				display: block;
+				font-size: 18px;
+				font-weight: bold;
+				color: #aad;
+			}
+			.log {
+				background: #0f0f1a;
+				padding: 15px;
+				border-radius: 8px;
+				font-family: monospace;
+				font-size: 14px;
+				max-height: 400px;
+				overflow-y: auto;
+				white-space: pre-wrap;
+				border: 1px solid #3a3a5a;
+				tab-size: 4;
+				-moz-tab-size: 4;
+				-o-tab-size: 4;
+				-webkit-tab-size: 4;
+			}
+			.winner-badge {
+				background: #ffd966;
+				color: #1a1a2e;
+				padding: 2px 8px;
+				border-radius: 20px;
+				font-size: 12px;
+				margin-left: 8px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>⚔️ SHA-256 名字竞技场</h1>
+		<p>每行代表一队，队内用逗号分隔。单行单个名字进入战力测试模式。</p>
+
+		<textarea id="namesInput" rows="4">
+lyhy
+hsl_beat</textarea
+		>
+		<button id="fightBtn">开始</button>
+		<div class="mode-hint">👥 当前为组队对战模式</div>
+
+		<div id="fightersDiv" class="fighters"></div>
+		<div id="logDiv" class="log"></div>
+
+		<script>
+			(async function () {
+				// 使用浏览器内置 SHA-256
+				async function sha256(text) {
+					const encoder = new TextEncoder();
+					const data = encoder.encode(text);
+					const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+					const hashArray = Array.from(new Uint8Array(hashBuffer));
+					return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+				}
+
+				// 从哈希字节生成正态分布
+				function normalFromHashBytes(bytes, offset) {
+					let sum = 0;
+					for (let i = 0; i < 12; i++) {
+						const idx = (offset + i) % bytes.length;
+						sum += bytes[idx];
+					}
+					const z = (sum - 1530) / 255.97;
+					return z;
+				}
+
+				// 从哈希生成属性
+				function normalFromHash(hash, index) {
+					const bytes = [];
+					for (let i = 0; i < hash.length; i += 2) {
+						bytes.push(parseInt(hash.substr(i, 2), 16));
+					}
+					const z = normalFromHashBytes(bytes, index * 12);
+					let result = Math.round(60 + z * 15);
+					return Math.max(0, Math.min(500, result));
+				}
+
+				// 从哈希生成七维属性
+				function generateStats(name, hash) {
+					const stats = { name, hash };
+					const keys = ["atk", "def", "spd", "agi", "mag", "res", "int", "hp"];
+					for (let i = 0; i < 8; i++) {
+						stats[keys[i]] = normalFromHash(hash, i);
+					}
+					stats.total = Math.floor((stats.hp + stats.atk + stats.def + stats.spd + stats.agi + stats.mag + stats.res + stats.int) / 8);
+					stats.hp = Math.max(1, 80 + stats.hp * 3);
+					return stats;
+				}
+
+				// 基于所有名字生成战局随机种子
+				async function createBattleRNG(names) {
+					const sorted = [...names].sort();
+					const seedHash = await sha256(sorted.join(", "));
+					let state = parseInt(seedHash.slice(0, 8), 16);
+					return () => {
+						state = (state * 1103515245 + 12345) & 0x7fffffff;
+						return state / 0x7fffffff;
+					};
+				}
+
+				// 渲染角色卡片（按队伍分组）
+				function renderFighters(fighters, deadSet, teams = null) {
+					const div = document.getElementById("fightersDiv");
+					let html = "";
+
+					if (teams !== null) {
+						// 组队模式：按队伍分组显示
+						teams.forEach((team, idx) => {
+							const teamFighters = fighters.filter((f) => team.members.includes(f.name));
+							if (teamFighters.length === 0) return;
+
+							html += `<div class="team-group">`;
+							html += `<div class="team-label">队伍 ${idx + 1} ${team.winner ? '<span class="winner-badge">🏆 胜者</span>' : ""}</div>`;
+
+							teamFighters.forEach((f) => {
+								const isDead = deadSet.has(f.name);
+								const hpPercent = isDead ? 0 : (f.hp / f.maxHp) * 100;
+								html += `<div class="card ${isDead ? "dead" : ""}">
+                        <div class="name">${f.name}</div>
+                        <div class="hp"><div class="hp-bar" style="width:${hpPercent}%"></div></div>
+                        <div style="font-size:12px">HP ${isDead ? 0 : f.hp}/${f.maxHp}</div>
+                        <div class="stats">
+                            <div class="stat">攻<span>${f.atk}</span></div>
+                            <div class="stat">防<span>${f.def}</span></div>
+                            <div class="stat">速<span>${f.spd}</span></div>
+                            <div class="stat">敏<span>${f.agi}</span></div>
+                            <div class="stat">魔<span>${f.mag}</span></div>
+                            <div class="stat">抗<span>${f.res}</span></div>
+                            <div class="stat">智<span>${f.int}</span></div>
+                            <div class="stat">战力<span>${f.total}</span></div>
+                        </div>
+                    </div>`;
+							});
+
+							html += `</div>`;
+						});
+					} else {
+						// 测试模式
+						fighters.forEach((f) => {
+							const isDead = deadSet.has(f.name);
+							const hpPercent = isDead ? 0 : (f.hp / f.maxHp) * 100;
+							html += `<div class="card ${isDead ? "dead" : ""}">
+                    <div class="name">${f.name}</div>
+                    <div class="hp"><div class="hp-bar" style="width:${hpPercent}%"></div></div>
+                    <div style="font-size:12px">HP ${isDead ? 0 : f.hp}/${f.maxHp}</div>
+                    <div class="stats">
+                        <div class="stat">攻<span>${f.atk}</span></div>
+                        <div class="stat">防<span>${f.def}</span></div>
+                        <div class="stat">速<span>${f.spd}</span></div>
+                        <div class="stat">敏<span>${f.agi}</span></div>
+                        <div class="stat">魔<span>${f.mag}</span></div>
+                        <div class="stat">抗<span>${f.res}</span></div>
+                        <div class="stat">智<span>${f.int}</span></div>
+                        <div class="stat">战力<span>${f.total}</span></div>
+                    </div>
+                </div>`;
+						});
+					}
+
+					div.innerHTML = html;
+				}
+
+				let winner = null;
+
+				// 生成随机名字（使用 SHA-256 保证随机性）
+				async function generateRandomName(index) {
+					const hash = await sha256(`RANDOM_SEED_${index}_${Date.now()}`);
+					return "RANDOM_" + hash.slice(0, 8);
+				}
+
+				// ========== 核心战斗函数 ==========
+				async function battle(teams, options = {}) {
+					const { silent = false, returnResults = false } = options;
+
+					// 收集所有名字
+					const allNames = teams.flatMap((t) => t.members);
+
+					const fighters = [];
+					for (const name of allNames) {
+						const hash = await sha256(name);
+						const fighter = generateStats(name, hash);
+						fighter.team = teams.findIndex((t) => t.members.includes(name));
+						fighters.push(fighter);
+					}
+
+					fighters.forEach((f) => {
+						f.maxHp = f.hp;
+					});
+
+					const rng = await createBattleRNG(allNames);
+
+					let log = "";
+					if (!silent) {
+						log = `SHA256 名字竞技场\n`;
+						teams.forEach((team, idx) => {
+							log += `队伍${idx + 1} (${team.members.join(", ")})\n`;
+							const teamFighters = fighters.filter((f) => f.team === idx);
+							teamFighters.forEach((f) => {
+								log += `\t${f.name}: 血${f.hp} 攻${f.atk} 防${f.def} 速${f.spd} 敏${f.agi} 魔${f.mag} 抗${f.res} 智${f.int}\n`;
+							});
+						});
+					}
+
+					const alive = new Set(fighters.map((f) => f.name));
+					const deadSet = new Set();
+
+					// 计算存活队伍
+					const getAliveTeams = () => {
+						const aliveTeams = new Set();
+						fighters.filter((f) => alive.has(f.name)).forEach((f) => aliveTeams.add(f.team));
+						return aliveTeams;
+					};
+
+					const actionTimers = new Map();
+					fighters.forEach((f) => actionTimers.set(f.name, f.spd * 1.5));
+
+					let actionCount = 0;
+					const maxActions = 5000;
+
+					while (alive.size > 1 && actionCount < maxActions) {
+						const aliveTeams = getAliveTeams();
+						if (aliveTeams.size <= 1) break;
+
+						for (const f of fighters) {
+							if (!alive.has(f.name)) continue;
+							const old = actionTimers.get(f.name);
+							const gain = 5 + f.spd * 0.8;
+							actionTimers.set(f.name, old + gain);
+						}
+
+						const ready = fighters.filter((f) => alive.has(f.name) && actionTimers.get(f.name) >= 100);
+						if (ready.length === 0) continue;
+
+						ready.sort((a, b) => actionTimers.get(b.name) - actionTimers.get(a.name));
+
+						for (const attacker of ready) {
+							if (!alive.has(attacker.name)) continue;
+
+							const aliveTeams = getAliveTeams();
+							if (aliveTeams.size <= 1) break;
+
+							const overflow = actionTimers.get(attacker.name) - 100;
+							actionTimers.set(attacker.name, Math.max(0, overflow));
+
+							// 选择敌方队伍的目标
+							const targets = fighters.filter((f) => alive.has(f.name) && f.team !== attacker.team);
+							if (targets.length === 0) break;
+
+							const target = targets[Math.floor(rng() * targets.length)];
+
+							const hitBase = 70 + (attacker.agi - target.agi) * 0.5;
+							const hitRate = Math.min(95, Math.max(5, hitBase));
+							const hitRoll = Math.floor(rng() * 100);
+
+							actionCount++;
+
+							if (!silent) log += `\n${attacker.name} 对 ${target.name} 发动攻击`;
+
+							if (hitRoll >= hitRate) {
+								if (!silent) log += `\n\t${target.name} 闪避了攻击\n`;
+								continue;
+							}
+
+							let derdmg = attacker.atk * 0.4;
+							let objdmg = attacker.atk * 0.6;
+							let def = target.def * 0.6;
+							let effects = [];
+
+							if (rng() * 100 < Math.min(60, Math.max(0, 20 + (attacker.mag - attacker.atk) * 0.5))) {
+								derdmg = attacker.mag * 0.4;
+								objdmg = attacker.mag * 0.6;
+								def = target.res * 0.6;
+								if (!silent) effects.push("🔮魔法");
+							}
+
+							if (rng() * 100 < Math.min(40, Math.max(0, 15 + (attacker.int - target.int) * 0.5))) {
+								def = def * 0.2;
+								if (!silent) effects.push("✨偷袭");
+							}
+
+							if (rng() * 100 < Math.min(60, Math.max(5, 10 + (attacker.agi - target.agi) * 0.2))) {
+								derdmg = derdmg * 2;
+								objdmg = objdmg * 1.5;
+								def = def * 1.5;
+								if (!silent) effects.push("💥暴击");
+							}
+
+							let dmg = Math.floor(derdmg + Math.max(0, objdmg - def));
+							dmg = Math.max(1, dmg);
+							target.hp = Math.max(0, target.hp - dmg);
+
+							if (!silent) {
+								if (effects.length > 0) log += `\n\t${attacker.name} 发动了 ${effects.join(" ")} `;
+								log += `\n\t${target.name} 受到了 ${dmg} 点伤害\n`;
+							}
+
+							if (target.hp <= 0) {
+								alive.delete(target.name);
+								deadSet.add(target.name);
+								if (!silent) log += `\n${target.name} 被击倒了!\n`;
+							}
+						}
+					}
+
+					const winnerTeamIdx = getAliveTeams().values().next().value;
+					const winnerTeam = teams[winnerTeamIdx];
+					winner = fighters.find((f) => f.team === winnerTeamIdx);
+
+					if (!silent) {
+						log += `\n🏆 胜者队伍: 队伍${winnerTeamIdx + 1} (${winnerTeam.members.join(", ")})`;
+					}
+
+					if (returnResults) {
+						return { winner: winner ? winner.name : null, winnerTeam: winnerTeamIdx, fighters };
+					}
+					return { log, winner, winnerTeam: winnerTeamIdx, fighters, deadSet, teams };
+				}
+
+				// ========== 战力测试（调用 battle） ==========
+				async function powerTest(targetName) {
+					const targetHash = await sha256(targetName);
+					const target = generateStats(targetName, targetHash);
+					target.maxHp = target.hp;
+
+					const testNames1 = [],
+						testNames2 = [],
+						testNames3 = [];
+					for (let i = 0; i < 5000; i++) {
+						testNames1.push(await generateRandomName(i));
+						testNames2.push(await generateRandomName(i * 123));
+						testNames3.push(await generateRandomName(i * 456));
+					}
+
+					let wins = 0;
+					let log = `测试模式\n`;
+					log += `\t${targetName}: 血${target.hp} 攻${target.atk} 防${target.def} 速${target.spd} 敏${target.agi} 魔${target.mag} 抗${target.res} 智${target.int}\n`;
+					log += `正在与 5000 个随机单人队或双人队对战\n\n`;
+
+					renderFighters([target], new Set(), null);
+
+					const batchSize = 100;
+					const totalBatches = Math.ceil(testNames1.length / batchSize);
+
+					for (let batch = 0; batch < totalBatches; batch++) {
+						const promises = [];
+						const start = batch * batchSize;
+						const end = Math.min(start + batchSize, testNames1.length);
+
+						for (let i = start; i < end; i++) {
+							const enemyName = testNames1[i];
+							if (i % 2 === 0) promises.push(battle([{ members: [targetName] }, { members: [enemyName] }], { silent: true, returnResults: true }));
+							else promises.push(battle([{ members: [targetName] }, { members: [enemyName, testNames2[i], testNames3[i]] }], { silent: true, returnResults: true }));
+						}
+
+						const results = await Promise.all(promises);
+						results.forEach((result) => {
+							if (result.winnerTeam === 0) wins++;
+						});
+
+						const tested = end;
+						log += `第 ${batch + 1} 组 (${tested}/${testNames1.length}): 当前胜率 ${wins}/${tested}\n`;
+						document.getElementById("logDiv").textContent = log;
+					}
+
+					log += `\n🏆 得分: ${2 * wins}/10000\n`;
+
+					return { log, fighters: [target], deadSet: new Set(), winner: null };
+				}
+
+				// ========== UI 调用 ==========
+				async function startBattle() {
+					const input = document.getElementById("namesInput").value;
+					const lines = input.split("\n").filter((l) => l.trim());
+
+					// 解析队伍：每行是一个队伍，队内用逗号分隔
+					const teams = lines
+						.map((line) => {
+							const members = line
+								.split(/[,，]+/)
+								.map((n) => n.trim())
+								.filter((n) => n);
+							return { members };
+						})
+						.filter((t) => t.members.length > 0);
+
+					if (teams.length === 0) return;
+
+					const allNames = teams.flatMap((t) => t.members);
+					const uniqueNames = [...new Set(allNames)];
+
+					let result;
+					if (uniqueNames.length === 1) {
+						// 单个名字：战力测试
+						result = await powerTest(uniqueNames[0]);
+						document.querySelector(".mode-hint").textContent = "📊 当前为测试模式";
+					} else {
+						// 多个队伍：组队战
+						result = await battle(teams);
+						document.querySelector(".mode-hint").textContent = `👥 当前为组队对战模式`;
+						winner = result.winner;
+						renderFighters(result.fighters, result.deadSet || new Set(), result.teams || teams);
+					}
+
+					document.getElementById("logDiv").textContent = result.log;
+				}
+
+				document.getElementById("fightBtn").addEventListener("click", startBattle);
+				setTimeout(startBattle, 100);
+			})();
+		</script>
+	</body>
+</html>
