@@ -90,6 +90,7 @@ export async function battle(teams, options = {}) {
         
         if (maxBar < 100) continue;
         
+        // 重要：无论是否有目标，都要消耗行动条
         actionBars.set(attacker.name, maxBar - 100);
         actionCount++;
         
@@ -108,7 +109,12 @@ export async function battle(teams, options = {}) {
             alive.has(f.name) && f.team !== attacker.team
         );
         
-        if (targets.length === 0) continue;
+        // 如果没有目标，跳过本次行动（战斗可能已结束）
+        if (targets.length === 0) {
+            // 检查战斗是否结束
+            if (getAliveTeams().size <= 1) break;
+            continue;
+        }
         
         const target = targets[Math.floor(rng() * targets.length)];
         if (!target) continue;
@@ -124,8 +130,10 @@ export async function battle(teams, options = {}) {
                 
                 // 辅助技能效果
                 if (supportSkill.id === "heal") {
-                    const healTarget = rng() < 0.5 ? attacker : 
-                        fighters.filter(f => alive.has(f.name) && f.team === attacker.team)[0] || attacker;
+                    const allies = fighters.filter(f => alive.has(f.name) && f.team === attacker.team);
+                    const healTarget = allies.length > 0 ? 
+                        (rng() < 0.5 ? attacker : allies[Math.floor(rng() * allies.length)]) : 
+                        attacker;
                     const healAmount = Math.floor(attacker.mag * 1.5);
                     healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + healAmount);
                     if (!silent) log += ` → ${healTarget.name} 回复 ${healAmount}`;
@@ -286,21 +294,26 @@ export async function battle(teams, options = {}) {
             }
         }
         
-        // 中毒伤害
-        for (const f of fighters) {
-            if (!alive.has(f.name)) continue;
-            if (f.poisoned > 0) {
-                const poisonDmg = Math.floor(f.maxHp * 0.05);
-                f.hp = Math.max(0, f.hp - poisonDmg);
-                f.poisoned--;
-                if (!silent && poisonDmg > 0) {
-                    log += `\n☠️ ${f.name} 中毒损失 ${poisonDmg} 点体力`;
-                }
-                if (f.hp <= 0) {
-                    alive.delete(f.name);
-                    deadSet.add(f.name);
-                    f.alive = false;
-                    if (!silent) log += ` → ${f.name} 被毒倒了!`;
+        // 检查战斗是否结束
+        if (getAliveTeams().size <= 1) break;
+        
+        // 中毒伤害（每轮结束时触发一次）
+        if (actionCount % 5 === 0) {
+            for (const f of fighters) {
+                if (!alive.has(f.name)) continue;
+                if (f.poisoned > 0) {
+                    const poisonDmg = Math.floor(f.maxHp * 0.05);
+                    f.hp = Math.max(0, f.hp - poisonDmg);
+                    f.poisoned--;
+                    if (!silent && poisonDmg > 0) {
+                        log += `\n☠️ ${f.name} 中毒损失 ${poisonDmg} 点体力`;
+                    }
+                    if (f.hp <= 0) {
+                        alive.delete(f.name);
+                        deadSet.add(f.name);
+                        f.alive = false;
+                        if (!silent) log += ` → ${f.name} 被毒倒了!`;
+                    }
                 }
             }
         }
