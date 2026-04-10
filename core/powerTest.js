@@ -46,7 +46,7 @@ export async function powerTest(targetName) {
         log += `第 ${batch + 1} 组 (${tested}/${testNames1.length}): 当前胜率 ${wins}/${tested}\n`;
     }
 
-    log += `\n? 得分: ${2 * wins}/10000\n`;
+    log += `\n强度: ${2 * wins}/10000\n`;
 
     return { log, fighters: [target], deadSet: new Set(), winner: null };
 }
