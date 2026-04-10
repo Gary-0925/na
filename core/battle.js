@@ -19,7 +19,6 @@ export async function battle(teams, options = {}) {
         fighter.alive = true;
         fighter.buffs = {};
         fighter.debuffs = {};
-        fighter.statusEffects = [];
         fighters.push(fighter);
     }
 
@@ -47,7 +46,6 @@ export async function battle(teams, options = {}) {
     const alive = new Set(fighters.map(f => f.name));
     const deadSet = new Set();
     
-    // 初始化行动条
     const actionBars = new Map();
     fighters.forEach(f => {
         actionBars.set(f.name, rng() * 50);
@@ -63,6 +61,27 @@ export async function battle(teams, options = {}) {
     };
 
     while (alive.size > 1 && getAliveTeams().size > 1 && actionCount < maxActions) {
+        
+        // 中毒伤害
+        for (const f of fighters) {
+            if (!alive.has(f.name)) continue;
+            if (f.poisoned > 0) {
+                const poisonDmg = Math.floor(f.maxHp * 0.05);
+                f.hp = Math.max(0, f.hp - poisonDmg);
+                f.poisoned--;
+                if (!silent) {
+                    log += `\n☠️ ${f.name} 中毒损失 ${poisonDmg} 点体力`;
+                }
+                if (f.hp <= 0) {
+                    alive.delete(f.name);
+                    deadSet.add(f.name);
+                    f.alive = false;
+                    if (!silent) log += ` → 被毒倒!`;
+                }
+            }
+        }
+        
+        if (getAliveTeams().size <= 1) break;
         
         // 增加行动条
         for (const f of fighters) {
@@ -90,11 +109,10 @@ export async function battle(teams, options = {}) {
         
         if (maxBar < 100) continue;
         
-        // 重要：无论是否有目标，都要消耗行动条
         actionBars.set(attacker.name, maxBar - 100);
         actionCount++;
         
-        // 回合开始触发被动
+        // 回合开始被动
         for (const passive of attacker.skills.passives) {
             if (passive.trigger === "onTurnStart" && checkSkillTrigger(passive, rng)) {
                 if (!silent) log += `\n✨ ${attacker.name} 触发 ${passive.name}`;
@@ -109,9 +127,7 @@ export async function battle(teams, options = {}) {
             alive.has(f.name) && f.team !== attacker.team
         );
         
-        // 如果没有目标，跳过本次行动（战斗可能已结束）
         if (targets.length === 0) {
-            // 检查战斗是否结束
             if (getAliveTeams().size <= 1) break;
             continue;
         }
@@ -123,12 +139,10 @@ export async function battle(teams, options = {}) {
         const useSupport = attacker.skills.supports.length > 0 && rng() < 0.3;
         
         if (useSupport) {
-            // 使用辅助技能
             const supportSkill = attacker.skills.supports[Math.floor(rng() * attacker.skills.supports.length)];
             if (checkSkillTrigger(supportSkill, rng)) {
                 if (!silent) log += `\n🔮 ${attacker.name} 使用 ${supportSkill.name}`;
                 
-                // 辅助技能效果
                 if (supportSkill.id === "heal") {
                     const allies = fighters.filter(f => alive.has(f.name) && f.team === attacker.team);
                     const healTarget = allies.length > 0 ? 
@@ -153,7 +167,6 @@ export async function battle(teams, options = {}) {
                 }
             }
         } else {
-            // 使用攻击技能
             const attackSkill = attacker.skills.attacks.length > 0 ? 
                 attacker.skills.attacks[Math.floor(rng() * attacker.skills.attacks.length)] : 
                 getDefaultAttack(attacker);
@@ -161,14 +174,14 @@ export async function battle(teams, options = {}) {
             const useSkill = checkSkillTrigger(attackSkill, rng);
             const skill = useSkill ? attackSkill : getDefaultAttack(attacker);
             
-            // 命中判定
             const hitBase = 70 + (attacker.agi - target.agi) * 0.5;
             const hitRate = Math.min(95, Math.max(5, hitBase));
             const hitRoll = Math.floor(rng() * 100);
             
             if (!silent) {
-                log += `\n${attacker.name} 对 ${target.name} 发动攻击`;
-                if (useSkill) log += ` (${skill.name})`;
+                let attackStr = `\n${attacker.name} 对 ${target.name} 发动攻击`;
+                if (useSkill) attackStr += ` (${skill.name})`;
+                log += attackStr;
             }
             
             if (hitRoll >= hitRate) {
@@ -176,7 +189,6 @@ export async function battle(teams, options = {}) {
                 continue;
             }
             
-            // 伤害计算
             let derdmg, objdmg, def;
             const power = skill.basePower / 100;
             
@@ -192,7 +204,6 @@ export async function battle(teams, options = {}) {
             
             let effects = [];
             
-            // 蓄力
             if (attacker.charged) {
                 derdmg *= 3;
                 objdmg *= 3;
@@ -200,22 +211,8 @@ export async function battle(teams, options = {}) {
                 effects.push("⚡蓄力");
             }
             
-            // 暴击
-            if (rng() * 100 < Math.min(60, Math.max(5, 10 + (attacker.agi - target.agi) * 0.2))) {
-                derdmg = derdmg * 2;
-                objdmg = objdmg * 1.5;
-                effects.push("💥暴击");
-            }
-            
-            // 偷袭
-            if (rng() * 100 < Math.min(40, Math.max(0, 15 + (attacker.int - target.int) * 0.5))) {
-                def = def * 0.2;
-                effects.push("✨偷袭");
-            }
-            
             let dmg = Math.floor(derdmg + Math.max(0, objdmg - def));
             
-            // 护盾
             if (target.shield > 0) {
                 const absorbed = Math.min(target.shield, dmg);
                 dmg -= absorbed;
@@ -227,56 +224,53 @@ export async function battle(teams, options = {}) {
             target.hp = Math.max(0, target.hp - dmg);
             
             if (!silent) {
-                if (effects.length > 0) log += `\n\t${attacker.name} 发动了 ${effects.join(" ")}`;
-                log += `\n\t${target.name} 受到了 ${dmg} 点伤害`;
+                if (effects.length > 0) {
+                    log += `\n\t${effects.join(" ")}`;
+                }
+                log += `\n\t${target.name} 受到 ${dmg} 点伤害`;
             }
             
-            // 吸血
             if (skill.id === "drain_life") {
                 const heal = Math.floor(dmg / 2);
                 attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
-                if (!silent) log += `\n\t${attacker.name} 吸收了 ${heal} 点体力`;
+                if (!silent) log += `，吸收 ${heal} 点体力`;
             }
             
-            // 中毒
             if (skill.id === "poison") {
                 target.poisoned = 3;
+                if (!silent) log += `，中毒`;
             }
             
-            // 冰冻
             if (skill.id === "ice_bolt") {
                 target.frozen = 1;
+                if (!silent) log += `，冰冻`;
             }
             
-            // 诅咒
             if (skill.id === "curse") {
                 target.cursed = 3;
+                if (!silent) log += `，诅咒`;
             }
             
-            // 生命互换
             if (skill.id === "life_swap") {
                 const temp = attacker.hp;
                 attacker.hp = target.hp;
                 target.hp = temp;
-                if (!silent) log += `\n\t生命值互换了!`;
+                if (!silent) log += `\n\t生命值互换`;
             }
             
-            // 瘟疫
             if (skill.id === "plague") {
                 const percent = 50 + Math.floor(rng() * 50);
                 dmg = Math.floor(target.hp * percent / 100);
                 target.hp = Math.max(0, target.hp - dmg);
-                if (!silent) log += `\n\t瘟疫造成了 ${dmg} 点伤害 (${percent}%)`;
+                if (!silent) log += `\n\t瘟疫造成 ${dmg} 点伤害 (${percent}%)`;
             }
             
-            // 检查死亡
             if (target.hp <= 0) {
                 alive.delete(target.name);
                 deadSet.add(target.name);
                 target.alive = false;
                 if (!silent) log += `\n${target.name} 被击倒了!`;
                 
-                // 击杀被动
                 for (const passive of attacker.skills.passives) {
                     if (passive.trigger === "onKill" && checkSkillTrigger(passive, rng)) {
                         if (!silent) log += `\n✨ ${attacker.name} 触发 ${passive.name}`;
@@ -284,39 +278,22 @@ export async function battle(teams, options = {}) {
                 }
             }
             
-            // 反击
             for (const passive of target.skills.passives) {
                 if (passive.trigger === "afterDamage" && passive.id === "counter" && target.alive && checkSkillTrigger(passive, rng)) {
                     const counterDmg = Math.floor(target.atk * 0.5);
                     attacker.hp = Math.max(0, attacker.hp - counterDmg);
                     if (!silent) log += `\n\t${target.name} 反击造成 ${counterDmg} 点伤害`;
+                    if (attacker.hp <= 0) {
+                        alive.delete(attacker.name);
+                        deadSet.add(attacker.name);
+                        attacker.alive = false;
+                        if (!silent) log += `\n${attacker.name} 被反击击倒!`;
+                    }
                 }
             }
         }
         
-        // 检查战斗是否结束
         if (getAliveTeams().size <= 1) break;
-        
-        // 中毒伤害（每轮结束时触发一次）
-        if (actionCount % 5 === 0) {
-            for (const f of fighters) {
-                if (!alive.has(f.name)) continue;
-                if (f.poisoned > 0) {
-                    const poisonDmg = Math.floor(f.maxHp * 0.05);
-                    f.hp = Math.max(0, f.hp - poisonDmg);
-                    f.poisoned--;
-                    if (!silent && poisonDmg > 0) {
-                        log += `\n☠️ ${f.name} 中毒损失 ${poisonDmg} 点体力`;
-                    }
-                    if (f.hp <= 0) {
-                        alive.delete(f.name);
-                        deadSet.add(f.name);
-                        f.alive = false;
-                        if (!silent) log += ` → ${f.name} 被毒倒了!`;
-                    }
-                }
-            }
-        }
     }
     
     const aliveFighters = fighters.filter(f => alive.has(f.name));
