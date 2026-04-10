@@ -1,177 +1,91 @@
-import { sha256 } from "../utils/sha256.js";
-
 // ========== 攻击技能 ==========
 export const ATTACK_SKILLS = {
+    normal: {
+        name: "攻击",
+        type: "attack",
+        attr: "physical",
+        basePower: 100,
+        desc: "普通攻击"
+    },
     double_hit: {
         name: "连击",
         type: "attack",
         attr: "physical",
         basePower: 75,
-        hits: [2, 3],
-        desc: "连续多次攻击，若击中同一目标，后续伤害下降15%"
+        desc: "攻击两次，可攻击不同目标"
     },
     critical_hit: {
         name: "会心一击",
         type: "attack",
         attr: "physical",
         basePower: 145,
-        hits: [1, 1],
-        desc: "稳定输出伤害，随机性低"
+        desc: "稳定高伤害"
     },
     fireball: {
         name: "火球术",
         type: "attack",
         attr: "magical",
         basePower: 137,
-        hits: [1, 1],
-        desc: "若多次受到火系伤害，每次伤害增加25%"
+        desc: "火焰伤害"
     },
     ice_bolt: {
         name: "冰冻术",
         type: "attack",
         attr: "magical",
         basePower: 70,
-        hits: [1, 1],
-        desc: "命中后冰冻对手半回合"
+        desc: "冰冻对手"
     },
     thunder: {
         name: "雷击术",
         type: "attack",
         attr: "magical",
-        basePower: 35,
-        hits: [3, 6],
-        desc: "对单一目标多次伤害"
-    },
-    earthquake: {
-        name: "地裂术",
-        type: "attack",
-        attr: "magical",
-        basePower: 140,
-        hits: [1, 5],
-        desc: "将伤害平分给1~5个目标"
+        basePower: 120,
+        desc: "雷电伤害"
     },
     drain_life: {
         name: "吸血攻击",
         type: "attack",
         attr: "magical",
         basePower: 115,
-        hits: [1, 1],
-        desc: "命中后吸收一半体力"
-    },
-    frenzy: {
-        name: "狂暴术",
-        type: "attack",
-        attr: "magical",
-        basePower: 80,
-        hits: [1, 1],
-        desc: "命中后施加狂暴状态"
-    },
-    curse: {
-        name: "诅咒",
-        type: "attack",
-        attr: "magical",
-        basePower: 100,
-        hits: [1, 1],
-        desc: "施加诅咒状态，受到攻击随机伤害加倍"
-    },
-    purify: {
-        name: "净化",
-        type: "attack",
-        attr: "magical",
-        basePower: 100,
-        hits: [1, 1],
-        desc: "去除目标所有有益效果"
+        desc: "吸收体力"
     },
     poison: {
         name: "投毒",
         type: "attack",
         attr: "magical",
         basePower: 90,
-        hits: [1, 1],
-        desc: "施加中毒状态，每回合损失体力"
+        desc: "施加中毒"
     },
-    stealth: {
-        name: "潜行",
+    curse: {
+        name: "诅咒",
         type: "attack",
         attr: "magical",
-        basePower: 500,
-        hits: [1, 1],
-        desc: "两回合潜行后背刺"
-    },
-    plague: {
-        name: "瘟疫",
-        type: "attack",
-        attr: "magical",
-        basePower: 0,
-        hits: [1, 1],
-        desc: "目标按比例损失体力50%~99%"
-    },
-    life_swap: {
-        name: "生命之轮",
-        type: "attack",
-        attr: "magical",
-        basePower: 0,
-        hits: [1, 1],
-        desc: "和目标体力值互换"
+        basePower: 100,
+        desc: "施加诅咒"
     }
 };
 
 // ========== 辅助技能 ==========
 export const SUPPORT_SKILLS = {
-    focus: {
-        name: "聚气",
+    heal: {
+        name: "治愈术",
         type: "support",
-        desc: "攻击力提高60%"
-    },
-    charge: {
-        name: "蓄力",
-        type: "support",
-        desc: "下回合伤害提升到300%"
-    },
-    charm: {
-        name: "魅惑",
-        type: "support",
-        desc: "目标下回合将施法者视作队友"
+        desc: "回复体力"
     },
     haste: {
         name: "加速术",
         type: "support",
-        desc: "自己或队友速度加倍，持续3回合"
-    },
-    slow: {
-        name: "减速术",
-        type: "support",
-        desc: "目标速度减半，持续2回合"
+        desc: "速度上升"
     },
     iron_wall: {
         name: "铁壁",
         type: "support",
-        desc: "两回合内防御大幅上升"
+        desc: "防御上升"
     },
-    heal: {
-        name: "治愈术",
+    focus: {
+        name: "聚气",
         type: "support",
-        desc: "回复体力并去除异常状态"
-    },
-    revive: {
-        name: "苏生术",
-        type: "support",
-        desc: "复活一名被击倒的队友"
-    },
-    blood_sacrifice: {
-        name: "血祭",
-        type: "support",
-        desc: "召唤使魔"
-    },
-    phantom: {
-        name: "幻影",
-        type: "support",
-        desc: "召唤幻影"
-    },
-    clone: {
-        name: "分身",
-        type: "support",
-        desc: "分成两人，属性下降"
+        desc: "攻击上升"
     }
 };
 
@@ -181,57 +95,154 @@ export const PASSIVE_SKILLS = {
         name: "反击",
         type: "passive",
         trigger: "afterDamage",
-        desc: "受到伤害后向对手进行物理攻击"
-    },
-    guard: {
-        name: "防御",
-        type: "passive",
-        trigger: "beforeDamage",
-        desc: "进行防御，伤害减半"
-    },
-    reflect: {
-        name: "伤害反弹",
-        type: "passive",
-        trigger: "afterDamage",
-        desc: "将伤害反弹到施法者"
-    },
-    protect: {
-        name: "守护",
-        type: "passive",
-        trigger: "onAllyDamaged",
-        desc: "代替队友承受伤害"
-    },
-    amulet: {
-        name: "护身符",
-        type: "passive",
-        trigger: "onDeath",
-        desc: "被击倒时复活并恢复少量体力"
-    },
-    desperate: {
-        name: "垂死抗争",
-        type: "passive",
-        trigger: "onLowHp",
-        desc: "体力极低时所有属性上升"
+        desc: "受到伤害后反击"
     },
     shield: {
         name: "护盾",
         type: "passive",
         trigger: "onTurnStart",
-        desc: "每回合恢复少量护盾"
-    },
-    summon_undead: {
-        name: "召唤亡灵",
-        type: "passive",
-        trigger: "onKill",
-        desc: "将对手变成丧尸为自己战斗"
-    },
-    devour: {
-        name: "吞噬",
-        type: "passive",
-        trigger: "onKill",
-        desc: "吞噬对手提高属性并获得技能"
+        desc: "获得护盾"
     }
 };
+
+// ========== 技能效果处理器 ==========
+export const SkillHandlers = {
+    // 攻击技能
+    normal: (attacker, target, state) => {
+        return calculateDamage(attacker, target, 100, "physical");
+    },
+    
+    double_hit: (attacker, targets, state) => {
+        const results = [];
+        const enemies = state.getEnemies(attacker);
+        
+        // 第一次攻击
+        const target1 = targets[0];
+        const dmg1 = calculateDamage(attacker, target1, 75, "physical");
+        target1.hp = Math.max(0, target1.hp - dmg1);
+        results.push({ target: target1.name, dmg: dmg1 });
+        
+        // 第二次攻击，可能换目标
+        if (enemies.length > 1 && state.rng() < 0.5) {
+            const otherEnemies = enemies.filter(e => e.name !== target1.name);
+            const target2 = otherEnemies[Math.floor(state.rng() * otherEnemies.length)];
+            const dmg2 = Math.floor(calculateDamage(attacker, target2, 75, "physical") * 0.85);
+            target2.hp = Math.max(0, target2.hp - dmg2);
+            results.push({ target: target2.name, dmg: dmg2 });
+        } else {
+            const dmg2 = Math.floor(dmg1 * 0.85);
+            target1.hp = Math.max(0, target1.hp - dmg2);
+            results.push({ target: target1.name, dmg: dmg2 });
+        }
+        
+        return { results, effects: [] };
+    },
+    
+    critical_hit: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 145, "physical");
+        return { dmg, effects: [] };
+    },
+    
+    fireball: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 137, "magical");
+        return { dmg, effects: [] };
+    },
+    
+    ice_bolt: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 70, "magical");
+        target.frozen = 1;
+        return { dmg, effects: ["❄️冰冻"] };
+    },
+    
+    thunder: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 120, "magical");
+        return { dmg, effects: [] };
+    },
+    
+    drain_life: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 115, "magical");
+        const heal = Math.floor(dmg / 2);
+        attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
+        return { dmg, effects: [`💚吸血${heal}`] };
+    },
+    
+    poison: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 90, "magical");
+        target.poisoned = 3;
+        return { dmg, effects: ["☠️中毒"] };
+    },
+    
+    curse: (attacker, target, state) => {
+        const dmg = calculateDamage(attacker, target, 100, "magical");
+        target.cursed = 3;
+        return { dmg, effects: ["👁️诅咒"] };
+    },
+    
+    // 辅助技能
+    heal: (caster, target, state) => {
+        const healAmount = Math.floor(caster.mag * 1.5);
+        target.hp = Math.min(target.maxHp, target.hp + healAmount);
+        return { effects: [`💚回复${healAmount}`] };
+    },
+    
+    haste: (caster, target, state) => {
+        target.buffs = target.buffs || {};
+        target.buffs.spd = 3;
+        return { effects: ["💨加速"] };
+    },
+    
+    iron_wall: (caster, target, state) => {
+        target.buffs = target.buffs || {};
+        target.buffs.def = 2;
+        target.buffs.res = 2;
+        return { effects: ["🛡️铁壁"] };
+    },
+    
+    focus: (caster, target, state) => {
+        target.buffs = target.buffs || {};
+        target.buffs.atk = 3;
+        return { effects: ["💪聚气"] };
+    },
+    
+    // 被动技能
+    counter: (owner, attacker, state) => {
+        const dmg = Math.floor(owner.atk * 0.5);
+        attacker.hp = Math.max(0, attacker.hp - dmg);
+        return { effects: [`⚔️反击-${dmg}`] };
+    },
+    
+    shield: (owner, state) => {
+        const shieldAmount = Math.floor(owner.maxHp * 0.1);
+        owner.shield = (owner.shield || 0) + shieldAmount;
+        return { effects: [`🛡️护盾${shieldAmount}`] };
+    }
+};
+
+// 伤害计算
+function calculateDamage(attacker, target, power, attr) {
+    const powerRatio = power / 100;
+    let derdmg, objdmg, def;
+    
+    if (attr === "magical") {
+        derdmg = attacker.mag * 0.4 * powerRatio;
+        objdmg = attacker.mag * 0.6 * powerRatio;
+        def = target.res * 0.6;
+    } else {
+        derdmg = attacker.atk * 0.4 * powerRatio;
+        objdmg = attacker.atk * 0.6 * powerRatio;
+        def = target.def * 0.6;
+    }
+    
+    let dmg = Math.floor(derdmg + Math.max(0, objdmg - def));
+    
+    if (target.shield > 0) {
+        const absorbed = Math.min(target.shield, dmg);
+        dmg -= absorbed;
+        target.shield -= absorbed;
+    }
+    
+    return Math.max(1, dmg);
+}
 
 // ========== 从哈希生成技能 ==========
 export function generateSkills(name, hash) {
@@ -246,9 +257,16 @@ export function generateSkills(name, hash) {
         passives: []
     };
     
-    // 生成攻击技能 (1-3个)
-    const attackKeys = Object.keys(ATTACK_SKILLS);
-    const attackCount = 1 + (bytes[0] % 3);
+    // 普通攻击
+    skills.attacks.push({
+        ...ATTACK_SKILLS.normal,
+        id: "normal",
+        proficiency: 100
+    });
+    
+    // 额外攻击技能 (1-2个)
+    const attackKeys = Object.keys(ATTACK_SKILLS).filter(k => k !== "normal");
+    const attackCount = 1 + (bytes[0] % 2);
     const usedAttackIndices = new Set();
     
     for (let i = 0; i < attackCount && i < attackKeys.length; i++) {
@@ -258,69 +276,36 @@ export function generateSkills(name, hash) {
         } while (usedAttackIndices.has(idx));
         usedAttackIndices.add(idx);
         
-        const proficiency = 40 + (bytes[i * 5 + 2] % 50);
         skills.attacks.push({
             ...ATTACK_SKILLS[attackKeys[idx]],
             id: attackKeys[idx],
-            proficiency: proficiency
+            proficiency: 50 + (bytes[i * 5 + 2] % 40)
         });
     }
     
-    // 生成辅助技能 (1-2个)
+    // 辅助技能 (1个)
     const supportKeys = Object.keys(SUPPORT_SKILLS);
-    const supportCount = 1 + (bytes[10] % 2);
-    const usedSupportIndices = new Set();
+    const supportIdx = bytes[10] % supportKeys.length;
+    skills.supports.push({
+        ...SUPPORT_SKILLS[supportKeys[supportIdx]],
+        id: supportKeys[supportIdx],
+        proficiency: 50 + (bytes[11] % 40)
+    });
     
-    for (let i = 0; i < supportCount && i < supportKeys.length; i++) {
-        let idx;
-        do {
-            idx = (bytes[i * 4 + 15] * 123 + bytes[i * 4 + 16]) % supportKeys.length;
-        } while (usedSupportIndices.has(idx));
-        usedSupportIndices.add(idx);
-        
-        const proficiency = 40 + (bytes[i * 3 + 20] % 50);
-        skills.supports.push({
-            ...SUPPORT_SKILLS[supportKeys[idx]],
-            id: supportKeys[idx],
-            proficiency: proficiency
-        });
-    }
-    
-    // 生成被动技能 (1-3个)
-    const passiveKeys = Object.keys(PASSIVE_SKILLS);
-    const passiveCount = 1 + (bytes[5] % 3);
-    const usedPassiveIndices = new Set();
-    
-    for (let i = 0; i < passiveCount && i < passiveKeys.length; i++) {
-        let idx;
-        do {
-            idx = (bytes[i * 7 + 8] * 456 + bytes[i * 7 + 9]) % passiveKeys.length;
-        } while (usedPassiveIndices.has(idx));
-        usedPassiveIndices.add(idx);
-        
-        const proficiency = 30 + (bytes[i * 4 + 25] % 60);
+    // 被动技能 (0-1个)
+    if (bytes[12] % 2 === 0) {
+        const passiveKeys = Object.keys(PASSIVE_SKILLS);
+        const passiveIdx = bytes[13] % passiveKeys.length;
         skills.passives.push({
-            ...PASSIVE_SKILLS[passiveKeys[idx]],
-            id: passiveKeys[idx],
-            proficiency: proficiency
+            ...PASSIVE_SKILLS[passiveKeys[passiveIdx]],
+            id: passiveKeys[passiveIdx],
+            proficiency: 40 + (bytes[14] % 40)
         });
     }
     
     return skills;
 }
 
-// 检查技能是否触发
 export function checkSkillTrigger(skill, rng) {
     return rng() * 100 < skill.proficiency;
-}
-
-// 获取默认攻击技能
-export function getDefaultAttack(stats) {
-    return {
-        name: "攻击",
-        type: "attack",
-        attr: stats.mag > stats.atk ? "magical" : "physical",
-        basePower: 100,
-        hits: [1, 1]
-    };
 }

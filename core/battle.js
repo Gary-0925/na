@@ -1,7 +1,7 @@
 import { sha256 } from "../utils/sha256.js";
 import { createBattleRNG } from "../utils/random.js";
 import { generateStats } from "./stats.js";
-import { generateSkills, checkSkillTrigger, getDefaultAttack } from "./skills.js";
+import { generateSkills, checkSkillTrigger, SkillHandlers } from "./skills.js";
 
 // ========== 战斗状态管理类 ==========
 class BattleState {
@@ -14,9 +14,8 @@ class BattleState {
         this.actionBars = new Map();
         this.actionCount = 0;
         
-        // 初始化行动条
         fighters.forEach(f => {
-            this.actionBars.set(f.name, rng() * 50);
+            this.actionBars.set(f.name, rng() * 30 + 70);
         });
     }
     
@@ -38,7 +37,7 @@ class BattleState {
     
     getAllies(attacker) {
         return this.fighters.filter(f => 
-            this.alive.has(f.name) && f.team === attacker.team
+            this.alive.has(f.name) && f.team === attacker.team && f.name !== attacker.name
         );
     }
     
@@ -62,7 +61,7 @@ function updateActionBars(state) {
         let speedMultiplier = 1.0;
         if (f.buffs?.spd) speedMultiplier *= 1.5;
         if (f.debuffs?.spd) speedMultiplier *= 0.5;
-        const gain = 15 + f.spd * 0.3 * speedMultiplier + f.agi * 0.2;
+        const gain = 10 + f.spd * 0.4 * speedMultiplier;
         state.actionBars.set(f.name, oldBar + gain);
     }
 }
@@ -89,20 +88,25 @@ function getNextAttacker(state) {
 
 // ========== 状态效果处理 ==========
 function applyPoisonDamage(state, silent, log) {
-    const fightersArray = [...state.fighters];
-    for (const f of fightersArray) {
+    for (const f of state.fighters) {
         if (!state.alive.has(f.name)) continue;
         if (f.poisoned > 0) {
             const poisonDmg = Math.floor(f.maxHp * 0.05);
             f.hp = Math.max(0, f.hp - poisonDmg);
             f.poisoned--;
-            if (!silent) {
-                log.push(`☠️ ${f.name} 中毒损失 ${poisonDmg} 点体力`);
-            }
+            if (!silent) log.push(`${f.name} 中毒损失 ${poisonDmg} 点体力`);
             if (f.hp <= 0) {
                 state.removeFighter(f.name);
-                if (!silent) log.push(` → 被毒倒!`);
+                if (!silent) log.push(`${f.name} 被毒倒!`);
             }
+        }
+    }
+}
+
+function applyFrozenEffect(state) {
+    for (const f of state.fighters) {
+        if (f.frozen > 0) {
+            f.frozen--;
         }
     }
 }
@@ -110,127 +114,27 @@ function applyPoisonDamage(state, silent, log) {
 function triggerTurnStartPassives(attacker, state, silent, log) {
     for (const passive of attacker.skills.passives) {
         if (passive.trigger === "onTurnStart" && checkSkillTrigger(passive, state.rng)) {
-            if (!silent) log.push(`✨ ${attacker.name} 触发 ${passive.name}`);
-            if (passive.id === "shield") {
-                attacker.shield = (attacker.shield || 0) + Math.floor(attacker.maxHp * 0.1);
+            if (!silent) log.push(`${attacker.name} 触发 ${passive.name}`);
+            const handler = SkillHandlers[passive.id];
+            if (handler) {
+                const result = handler(attacker, null, state);
+                if (result.effects && !silent) {
+                    log.push(`\t${result.effects.join(" ")}`);
+                }
             }
         }
     }
 }
 
-// ========== 辅助技能处理 ==========
-function useSupportSkill(attacker, state, silent, log) {
-    const supportSkill = attacker.skills.supports[Math.floor(state.rng() * attacker.skills.supports.length)];
-    if (!checkSkillTrigger(supportSkill, state.rng)) return false;
-    
-    if (!silent) log.push(`🔮 ${attacker.name} 使用 ${supportSkill.name}`);
-    
-    if (supportSkill.id === "heal") {
-        const allies = state.getAllies(attacker);
-        const healTarget = allies.length > 0 ? 
-            (state.rng() < 0.5 ? attacker : allies[Math.floor(state.rng() * allies.length)]) : 
-            attacker;
-        const healAmount = Math.floor(attacker.mag * 1.5);
-        healTarget.hp = Math.min(healTarget.maxHp, healTarget.hp + healAmount);
-        if (!silent) log.push(` → ${healTarget.name} 回复 ${healAmount}`);
-    } else if (supportSkill.id === "haste") {
-        attacker.buffs.spd = 3;
-        if (!silent) log.push(` → 速度上升`);
-    } else if (supportSkill.id === "iron_wall") {
-        attacker.buffs.def = 2;
-        attacker.buffs.res = 2;
-        if (!silent) log.push(` → 防御上升`);
-    } else if (supportSkill.id === "focus") {
-        attacker.buffs.atk = 3;
-        if (!silent) log.push(` → 攻击上升`);
-    } else if (supportSkill.id === "charge") {
-        attacker.charged = 1;
-        if (!silent) log.push(` → 蓄力`);
-    }
-    return true;
-}
-
-// ========== 攻击技能处理 ==========
-function calculateDamage(attacker, target, skill) {
-    const power = skill.basePower / 100;
-    let derdmg, objdmg, def;
-    
-    if (skill.attr === "magical") {
-        derdmg = attacker.mag * 0.4 * power;
-        objdmg = attacker.mag * 0.6 * power;
-        def = target.res * 0.6;
-    } else {
-        derdmg = attacker.atk * 0.4 * power;
-        objdmg = attacker.atk * 0.6 * power;
-        def = target.def * 0.6;
-    }
-    
-    if (attacker.charged) {
-        derdmg *= 3;
-        objdmg *= 3;
-        attacker.charged = 0;
-    }
-    
-    let dmg = Math.floor(derdmg + Math.max(0, objdmg - def));
-    
-    if (target.shield > 0) {
-        const absorbed = Math.min(target.shield, dmg);
-        dmg -= absorbed;
-        target.shield -= absorbed;
-    }
-    
-    return Math.max(1, dmg);
-}
-
-function applySkillEffects(attacker, target, skill, dmg, state, silent, log) {
-    if (skill.id === "drain_life") {
-        const heal = Math.floor(dmg / 2);
-        attacker.hp = Math.min(attacker.maxHp, attacker.hp + heal);
-        if (!silent) log.push(`，吸收 ${heal} 点体力`);
-    }
-    
-    if (skill.id === "poison") {
-        target.poisoned = 3;
-        if (!silent) log.push(`，中毒`);
-    }
-    
-    if (skill.id === "ice_bolt") {
-        target.frozen = 1;
-        if (!silent) log.push(`，冰冻`);
-    }
-    
-    if (skill.id === "curse") {
-        target.cursed = 3;
-        if (!silent) log.push(`，诅咒`);
-    }
-    
-    if (skill.id === "life_swap") {
-        const temp = attacker.hp;
-        attacker.hp = target.hp;
-        target.hp = temp;
-        if (!silent) log.push(`\n\t生命值互换`);
-    }
-    
-    if (skill.id === "plague") {
-        const percent = 50 + Math.floor(state.rng() * 50);
-        const plagueDmg = Math.floor(target.hp * percent / 100);
-        target.hp = Math.max(0, target.hp - plagueDmg);
-        if (!silent) log.push(`\n\t瘟疫造成 ${plagueDmg} 点伤害 (${percent}%)`);
-    }
-}
-
-function useAttackSkill(attacker, state, silent, log) {
-    const enemies = state.getEnemies(attacker);
-    if (enemies.length === 0) return;
-    
+// ========== 技能执行 ==========
+function executeAttack(attacker, enemies, skill, state, silent, log) {
     const target = enemies[Math.floor(state.rng() * enemies.length)];
     
-    const attackSkill = attacker.skills.attacks.length > 0 ? 
-        attacker.skills.attacks[Math.floor(state.rng() * attacker.skills.attacks.length)] : 
-        getDefaultAttack(attacker);
-    
-    const useSkill = checkSkillTrigger(attackSkill, state.rng);
-    const skill = useSkill ? attackSkill : getDefaultAttack(attacker);
+    // 冰冻检查
+    if (attacker.frozen > 0) {
+        if (!silent) log.push(`${attacker.name} 被冰冻，无法行动`);
+        return;
+    }
     
     // 命中判定
     const hitBase = 70 + (attacker.agi - target.agi) * 0.5;
@@ -238,8 +142,12 @@ function useAttackSkill(attacker, state, silent, log) {
     const hitRoll = Math.floor(state.rng() * 100);
     
     if (!silent) {
-        let attackStr = `${attacker.name} 对 ${target.name} 发动攻击`;
-        if (useSkill) attackStr += ` (${skill.name})`;
+        let attackStr = `${attacker.name} 对 ${target.name}`;
+        if (skill.id !== "normal") {
+            attackStr += ` 使用 ${skill.name}`;
+        } else {
+            attackStr += ` 发动攻击`;
+        }
         log.push(attackStr);
     }
     
@@ -248,40 +156,97 @@ function useAttackSkill(attacker, state, silent, log) {
         return;
     }
     
-    const dmg = calculateDamage(attacker, target, skill);
-    target.hp = Math.max(0, target.hp - dmg);
+    // 执行技能效果
+    const handler = SkillHandlers[skill.id];
+    if (!handler) return;
     
-    if (!silent) {
-        log.push(`\t${target.name} 受到 ${dmg} 点伤害`);
+    const result = handler(attacker, target, state);
+    
+    // 处理伤害
+    if (result.results) {
+        result.results.forEach(r => {
+            const targetFighter = state.fighters.find(f => f.name === r.target);
+            if (targetFighter) {
+                targetFighter.hp = Math.max(0, targetFighter.hp - r.dmg);
+                if (!silent) log.push(`\t${r.target} 受到 ${r.dmg} 点伤害`);
+                
+                if (targetFighter.hp <= 0) {
+                    state.removeFighter(targetFighter.name);
+                    if (!silent) log.push(`${targetFighter.name} 被击倒了!`);
+                }
+            }
+        });
+    } else if (result.dmg) {
+        target.hp = Math.max(0, target.hp - result.dmg);
+        if (!silent) log.push(`\t${target.name} 受到 ${result.dmg} 点伤害`);
     }
     
-    applySkillEffects(attacker, target, skill, dmg, state, silent, log);
+    // 显示效果
+    if (result.effects && result.effects.length > 0 && !silent) {
+        log.push(`\t${result.effects.join(" ")}`);
+    }
     
     // 检查目标死亡
     if (target.hp <= 0) {
         state.removeFighter(target.name);
         if (!silent) log.push(`${target.name} 被击倒了!`);
-        
-        // 击杀被动
-        for (const passive of attacker.skills.passives) {
-            if (passive.trigger === "onKill" && checkSkillTrigger(passive, state.rng)) {
-                if (!silent) log.push(`✨ ${attacker.name} 触发 ${passive.name}`);
-            }
-        }
+        return;
     }
     
     // 反击
-    if (target.alive) {
-        for (const passive of target.skills.passives) {
-            if (passive.trigger === "afterDamage" && passive.id === "counter" && checkSkillTrigger(passive, state.rng)) {
-                const counterDmg = Math.floor(target.atk * 0.5);
-                attacker.hp = Math.max(0, attacker.hp - counterDmg);
-                if (!silent) log.push(`\t${target.name} 反击造成 ${counterDmg} 点伤害`);
-                if (attacker.hp <= 0) {
-                    state.removeFighter(attacker.name);
-                    if (!silent) log.push(`${attacker.name} 被反击击倒!`);
-                }
+    for (const passive of target.skills.passives) {
+        if (passive.trigger === "afterDamage" && passive.id === "counter" && target.alive && checkSkillTrigger(passive, state.rng)) {
+            const handler = SkillHandlers.counter;
+            const result = handler(target, attacker, state);
+            if (!silent) log.push(`\t${result.effects[0]}`);
+            if (attacker.hp <= 0) {
+                state.removeFighter(attacker.name);
+                if (!silent) log.push(`${attacker.name} 被反击击倒!`);
             }
+        }
+    }
+}
+
+function executeSupport(attacker, skill, state, silent, log) {
+    const allies = state.getAllies(attacker);
+    const target = allies.length > 0 && state.rng() < 0.5 ? 
+        allies[Math.floor(state.rng() * allies.length)] : attacker;
+    
+    if (!silent) {
+        log.push(`${attacker.name} 对 ${target.name} 使用 ${skill.name}`);
+    }
+    
+    const handler = SkillHandlers[skill.id];
+    if (handler) {
+        const result = handler(attacker, target, state);
+        if (result.effects && !silent) {
+            log.push(`\t${result.effects.join(" ")}`);
+        }
+    }
+}
+
+function takeAction(attacker, state, silent, log) {
+    const enemies = state.getEnemies(attacker);
+    if (enemies.length === 0) return;
+    
+    // 触发回合开始被动
+    triggerTurnStartPassives(attacker, state, silent, log);
+    
+    // 决定使用攻击还是辅助
+    const useSupport = attacker.skills.supports.length > 0 && state.rng() < 0.3;
+    
+    if (useSupport) {
+        const skill = attacker.skills.supports[0];
+        if (checkSkillTrigger(skill, state.rng)) {
+            executeSupport(attacker, skill, state, silent, log);
+        }
+    } else {
+        const skill = attacker.skills.attacks[Math.floor(state.rng() * attacker.skills.attacks.length)];
+        if (checkSkillTrigger(skill, state.rng)) {
+            executeAttack(attacker, enemies, skill, state, silent, log);
+        } else {
+            const normalSkill = attacker.skills.attacks.find(s => s.id === "normal");
+            executeAttack(attacker, enemies, normalSkill, state, silent, log);
         }
     }
 }
@@ -296,6 +261,9 @@ async function battleLoop(state, silent) {
         applyPoisonDamage(state, silent, log);
         if (state.isBattleOver()) break;
         
+        // 冰冻效果衰减
+        applyFrozenEffect(state);
+        
         // 更新行动条
         updateActionBars(state);
         
@@ -303,17 +271,8 @@ async function battleLoop(state, silent) {
         const attacker = getNextAttacker(state);
         if (!attacker) continue;
         
-        // 回合开始被动
-        triggerTurnStartPassives(attacker, state, silent, log);
-        
-        // 选择行动
-        const useSupport = attacker.skills.supports.length > 0 && state.rng() < 0.3;
-        
-        if (useSupport) {
-            useSupportSkill(attacker, state, silent, log);
-        } else {
-            useAttackSkill(attacker, state, silent, log);
-        }
+        // 执行行动
+        takeAction(attacker, state, silent, log);
     }
     
     return log;
