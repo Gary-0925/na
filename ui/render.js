@@ -8,7 +8,7 @@ export function renderFighters(fighters, deadSet, teams = null) {
             if (teamFighters.length === 0) return;
 
             html += `<div class="team-group">`;
-            html += `<div class="team-label">¶ÓÎé ${idx + 1} ${team.winner ? '<span class="winner-badge">? Ê¤Õß</span>' : ""}</div>`;
+            html += `<div class="team-label">é˜Ÿä¼ ${idx + 1} ${team.winner ? '<span class="winner-badge">ğŸ† èƒœè€…</span>' : ""}</div>`;
 
             teamFighters.forEach((f) => {
                 const isDead = deadSet.has(f.name);
@@ -18,14 +18,14 @@ export function renderFighters(fighters, deadSet, teams = null) {
                     <div class="hp"><div class="hp-bar" style="width:${hpPercent}%"></div></div>
                     <div style="font-size:12px">HP ${isDead ? 0 : f.hp}/${f.maxHp}</div>
                     <div class="stats">
-                        <div class="stat">¹¥<span>${f.atk}</span></div>
-                        <div class="stat">·À<span>${f.def}</span></div>
-                        <div class="stat">ËÙ<span>${f.spd}</span></div>
-                        <div class="stat">Ãô<span>${f.agi}</span></div>
-                        <div class="stat">Ä§<span>${f.mag}</span></div>
-                        <div class="stat">¿¹<span>${f.res}</span></div>
-                        <div class="stat">ÖÇ<span>${f.int}</span></div>
-                        <div class="stat">Õ½Á¦<span>${f.total}</span></div>
+                        <div class="stat">æ”»<span>${f.atk}</span></div>
+                        <div class="stat">é˜²<span>${f.def}</span></div>
+                        <div class="stat">é€Ÿ<span>${f.spd}</span></div>
+                        <div class="stat">æ•<span>${f.agi}</span></div>
+                        <div class="stat">é­”<span>${f.mag}</span></div>
+                        <div class="stat">æŠ—<span>${f.res}</span></div>
+                        <div class="stat">æ™º<span>${f.int}</span></div>
+                        <div class="stat">æˆ˜åŠ›<span>${f.total}</span></div>
                     </div>
                 </div>`;
             });
@@ -41,14 +41,14 @@ export function renderFighters(fighters, deadSet, teams = null) {
                 <div class="hp"><div class="hp-bar" style="width:${hpPercent}%"></div></div>
                 <div style="font-size:12px">HP ${isDead ? 0 : f.hp}/${f.maxHp}</div>
                 <div class="stats">
-                    <div class="stat">¹¥<span>${f.atk}</span></div>
-                    <div class="stat">·À<span>${f.def}</span></div>
-                    <div class="stat">ËÙ<span>${f.spd}</span></div>
-                    <div class="stat">Ãô<span>${f.agi}</span></div>
-                    <div class="stat">Ä§<span>${f.mag}</span></div>
-                    <div class="stat">¿¹<span>${f.res}</span></div>
-                    <div class="stat">ÖÇ<span>${f.int}</span></div>
-                    <div class="stat">Õ½Á¦<span>${f.total}</span></div>
+                    <div class="stat">æ”»<span>${f.atk}</span></div>
+                    <div class="stat">é˜²<span>${f.def}</span></div>
+                    <div class="stat">é€Ÿ<span>${f.spd}</span></div>
+                    <div class="stat">æ•<span>${f.agi}</span></div>
+                    <div class="stat">é­”<span>${f.mag}</span></div>
+                    <div class="stat">æŠ—<span>${f.res}</span></div>
+                    <div class="stat">æ™º<span>${f.int}</span></div>
+                    <div class="stat">æˆ˜åŠ›<span>${f.total}</span></div>
                 </div>
             </div>`;
         });

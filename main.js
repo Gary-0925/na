@@ -6,12 +6,12 @@ let winner = null;
 
 async function startBattle() {
     const input = document.getElementById("namesInput").value;
-    const lines = input.split("\n").filter((l) => l.trim());
+    const lines = input.split("\n").filter(l => l.trim());
 
     const teams = lines
         .map((line) => {
             const members = line
-                .split(/[,��]+/)
+                .split(/[,，]+/)
                 .map((n) => n.trim())
                 .filter((n) => n);
             return { members };
@@ -26,11 +26,11 @@ async function startBattle() {
     let result;
     if (uniqueNames.length === 1) {
         result = await powerTest(uniqueNames[0]);
-        document.querySelector(".mode-hint").textContent = "? ��ǰΪ����ģʽ";
+        document.querySelector(".mode-hint").textContent = "📊 当前为测试模式";
         renderFighters(result.fighters, result.deadSet || new Set(), null);
     } else {
         result = await battle(teams);
-        document.querySelector(".mode-hint").textContent = `? ��ǰΪ��Ӷ�սģʽ`;
+        document.querySelector(".mode-hint").textContent = `👥 当前为组队对战模式`;
         winner = result.winner;
         renderFighters(result.fighters, result.deadSet || new Set(), result.teams || teams);
     }
