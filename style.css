@@ -1,0 +1,126 @@
+body {
+	font-family: system-ui, sans-serif;
+	max-width: 1000px;
+	margin: 20px auto;
+	padding: 0 15px;
+	background: #1a1a2e;
+	color: #eee;
+}
+textarea {
+	width: 100%;
+	padding: 12px;
+	font-size: 16px;
+	border-radius: 8px;
+	border: 1px solid #444;
+	background: #2a2a4a;
+	color: #fff;
+	resize: vertical;
+}
+button {
+	margin: 10px 0;
+	padding: 12px 30px;
+	font-size: 18px;
+	font-weight: bold;
+	background: #4a6c8f;
+	color: white;
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+}
+button:hover {
+	background: #5a7c9f;
+}
+.mode-hint {
+	color: #aad;
+	font-size: 14px;
+	margin-top: -5px;
+	margin-bottom: 10px;
+}
+.fighters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 15px;
+	margin: 20px 0;
+}
+.team-group {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	border: 1px solid #4a6c8f;
+	border-radius: 12px;
+	padding: 10px;
+	background: #1f1f3a;
+}
+.team-label {
+	width: 100%;
+	font-weight: bold;
+	color: #aad;
+	margin-bottom: 5px;
+}
+.card {
+	background: #2a2a4a;
+	border-radius: 12px;
+	padding: 15px;
+	min-width: 160px;
+	flex: 1 0 auto;
+	border-left: 4px solid #6a9fc0;
+}
+.card.dead {
+	opacity: 0.4;
+	border-left-color: #804040;
+}
+.card .name {
+	font-size: 20px;
+	font-weight: bold;
+	margin-bottom: 10px;
+}
+.card .hp {
+	background: #3a1a1a;
+	height: 20px;
+	border-radius: 10px;
+	margin: 8px 0;
+	overflow: hidden;
+}
+.card .hp-bar {
+	height: 100%;
+	background: #4acf6a;
+	width: 100%;
+}
+.stats {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 5px;
+	font-size: 13px;
+}
+.stat {
+	text-align: center;
+}
+.stat span {
+	display: block;
+	font-size: 18px;
+	font-weight: bold;
+	color: #aad;
+}
+.log {
+	background: #0f0f1a;
+	padding: 15px;
+	border-radius: 8px;
+	font-family: monospace;
+	font-size: 14px;
+	max-height: 400px;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	border: 1px solid #3a3a5a;
+	tab-size: 4;
+	-moz-tab-size: 4;
+	-o-tab-size: 4;
+	-webkit-tab-size: 4;
+}
+.winner-badge {
+	background: #ffd966;
+	color: #1a1a2e;
+	padding: 2px 8px;
+	border-radius: 20px;
+	font-size: 12px;
+	margin-left: 8px;
+}
