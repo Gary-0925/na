@@ -109,7 +109,8 @@ export const PASSIVE_SKILLS = {
 export const SkillHandlers = {
     // 攻击技能
     normal: (attacker, target, state) => {
-        return calculateDamage(attacker, target, 100, "physical");
+        const dmg = calculateDamage(attacker, target, 100, "physical");
+        return { dmg, effects: [] };
     },
     
     double_hit: (attacker, targets, state) => {
